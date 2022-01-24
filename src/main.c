@@ -2,8 +2,10 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 
 bool readFile(char* file, char** lines);
+uint32_t evalAsmLn(char* asmLn);
 
 int main (int argc, char* argv[]) {
 	if (argc != 2) {
@@ -13,16 +15,17 @@ int main (int argc, char* argv[]) {
 				printf("\nUsage:\n%s [file or flag]\n\nFlags:\n-h or --help\tShow this message\n", argv[0]);
 				return 0;
 		} else {
-			char* asmLines[100];
-			if (!readFile(argv[1], asmLines)) {
+			char* asmLines[6];
+			if (!readFile(argv[1], asmLines)) {	//checks if the file is open then reads it to and array of strings so I can parse them line by line
 				printf("'%s' not found or cannot be opened\n", argv[1]); 
 				return -1;
 			}
-				
-			printf("%s", asmLines[0]);
+			for (size_t i = 0; i < sizeof(asmLines)/sizeof(asmLines[0])-1; i++) {	//loops through the array of strings and evaluates each line
+				printf("%s", asmLines[i]);
+				printf("%x\n---------------------------\n", evalAsmLn(asmLines[i]));
+			}
 		}
 	}
-
 	return 0;
 }
 
@@ -32,13 +35,25 @@ bool readFile(char* file, char** lines) {
 	if (fptr == NULL) {
 		return false;
 	}
-
 	size_t i = 0;
-	do { 
+	do { //I think I need to do better memory allocation but for now I will just allocate in excess
 		lines[i] = (char*)malloc(100); 
 		i++;
 	} while (fgets(lines[i-1], 100, fptr) != NULL);
 	fclose(fptr);
-
 	return true;
+}
+
+uint32_t evalAsmLn(char* asmLn) {
+	//using strtok_r for safety
+	char* tmp = asmLn;
+	char* op = strtok_r(asmLn, " ", &tmp);
+	if (strcmp(op, "ADD") == 0) {	//cool little "one-liner" that gets each of the two substrings with strtok, converts them to longs with strtol, and then masks them as uint32_t and finally adds them
+		return (uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0)
+			+
+			(uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0);
+	}	
+	else {
+		return 0;
+	} 
 }
