@@ -1,8 +1,8 @@
-#CS 219.1001 Programming Assignment 1
+# CS 219.1001 Programming Assignment 1
 
 ASM file interpreter written in C
 
-#Build and run
+# Build and run
 Uses linux make to compile
 ```sh
 make
