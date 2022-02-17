@@ -35,7 +35,7 @@ int main (int argc, char* argv[]) {
 	return 0;
 }
 
- 
+
 
 
 bool readFile(const char* file, char** lines) {
@@ -71,3 +71,4 @@ uint32_t evalAsmLn(char* asmLn) {
 		return 0;
 	} 
 }
+
