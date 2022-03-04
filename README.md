@@ -1,4 +1,4 @@
-# CS 219.1001 Programming Assignment 1
+# CS 219.1001 Programming Assignment
 
 ASM file interpreter written in C
 
