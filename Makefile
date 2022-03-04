@@ -2,10 +2,11 @@ SRC = $(wildcard ./src/*.c)
 INC = $(wildcard ./src/*.h)
 OBJ = $(SRC:.c=.o)
 CC = gcc
+CFLAGS = -ggdb -g3
 TGT = $(shell basename `pwd`)
 
 $(TGT): $(OBJ) $(INC)
-	$(CC) -ggdb -g3 -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^
 .PHONY: clean
 
 clean:

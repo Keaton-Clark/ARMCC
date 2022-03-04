@@ -9,6 +9,10 @@ make
 ```
 Sample files are provided in the sample directory
 ```sh
-./CS219-Project samples/sample1.txt
+./CS219-Project samples/sample.txt
+```
+Running with -g generates a new random sample
+```sh
+./CS219-Project -g
 ```
 Found at https://github.com/Keaton-Clark/CS219-Project-Part-1.git
