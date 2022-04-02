@@ -1,4 +1,4 @@
-# CS 219.1001 Programming Assignment
+# ARMCC
 
 ASM file interpreter written in C
 
