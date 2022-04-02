@@ -5,7 +5,7 @@ CC = gcc
 CFLAGS = -ggdb -g3
 TGT = $(shell basename `pwd`)
 
-$(TGT): $(OBJ) $(INC)
+$(TGT): $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $^
 .PHONY: clean
 

@@ -9,122 +9,59 @@
 #include <string.h>
 #include <stdint.h>
 #include <time.h>
+#include <unistd.h>
+#include <stdarg.h>
+#include "arm.h"
 
-#define ADD 0xb87d06e
-#define AND 0xb87d1b8
-#define ASR 0xb87d26b
-#define LSR 0xb880136
-#define LSL 0xb880130
-#define NOT 0xb880936
-#define ORR 0xb880dd8
-#define SUB 0xb881f2f
-#define XOR 0xb8833be
 
-bool readFile(const char* file, char** lines);
-uint32_t evalAsmLn(char* asmLn);
-uint32_t hash(char* str);
-void gensample();
+void display_processor_state(arm_processor_state processor_state);
 
-int main (int argc, char* argv[]) {
-	if (argc == 2) {
-		if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
-				printf("\nUsage:\n%s [file or flag]\n\nFlags:\n-h or --help\tShow this message\n", argv[0]);
-				return 0;
-		} else if (strcmp(argv[1], "-g") == 0) {
-			gensample();
-			return 0;
-		} else {
-			char* asmLines[0xFF];
-			if (!readFile(argv[1], asmLines)) {	//checks if the file is open then reads it to and array of strings so I can parse them line by line
-				printf("'%s' not found or cannot be opened\n", argv[1]); 
-				return -1;
-			}
-			for (size_t i = 0; i < sizeof(asmLines)/sizeof(asmLines[0])-1; i++) {	//loops through the array of strings and evaluates each line
-				printf("%s", asmLines[i]);
-				printf("0x%X\n---------------------------\n", evalAsmLn(asmLines[i]));
-			}
+bool readfile(char *file);
+
+int main() {
+	arm_processor_state processor_state;
+	memset(&processor_state, 0, sizeof(arm_processor_state));
+	processor_state.cpsr = 1 << 31;
+	display_processor_state(processor_state);
+	char str[] = "MOVCS r7, #0xFF";
+	uint32_t out;
+	armv7_init_hash_map();
+	uint32_t mc = armv7_compile_line(str);
+	printf("%s\n", str);
+	printf("%.32b\n%s", mc, arm_decompile_machine_code(mc));
+	armv7_execute_machine_code(processor_state, mc);
+}
+
+bool readfile(char *file) {
+	int fsize = 0, flines = 0;
+	char *filebuff;
+	char c;
+	bool content = false;
+	FILE *fptr = fopen(file, "r");
+	if (fptr == NULL) return false;
+	while ((c = fgetc(fptr)) != EOF) {
+		if (c == ';' && !content) flines--;
+		if (c == '\n') {
+			flines++;
+			content = false;
 		}
-	} else {
-		printf("Incorrect number of arguments given.\n%d: Given\n1: Required\n", argc - 1);
-		return -1;
+		content == true;
+		fsize++;
 	}
-	return 0;
-}
-
-uint32_t hash(char* str) { //Why? Because it looked fun, no good reason. Makes it slightly faster with less modularity
-	int hash = 5381;
-	int c;
-	while (c = *str++)
-		hash = ((hash << 5) + hash) + c;
-	return hash;
-}
-
-bool readFile(const char* file, char** lines) {
-	FILE* fptr = fopen(file, "r");
-	if (fptr == NULL) {
-		return false;
-	}
-	size_t bufsize = 32;
-	char* buffer = (char*)malloc(bufsize);
-	for (size_t i = 0; fgets(buffer, bufsize, fptr) != NULL; i++) {
-		lines[i] = (char*)malloc(strlen(buffer));
-		strcpy(lines[i], buffer);
-	}
-	free(buffer);
+	filebuff = malloc(fsize);
+	rewind(fptr);
+	fread(filebuff, 1, fsize, fptr);
+	printf("%s", filebuff);
 	fclose(fptr);
-	return true;
 }
 
-uint32_t evalAsmLn(char* asmLn) {
-	//using strtok_r for safety
-	char* tmp = asmLn;
-	char* op = strtok_r(asmLn, " ", &tmp);
-	switch (hash(op)) {
-		case ADD:
-			return (uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0) //cool little "one-liner" that gets each of the two substrings with strtok, converts them to longs with strtol, and then masks them as uint32_t and finally adds them
-				+
-				(uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0);
-		case ASR:
-			return (uint32_t)((int32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0) >> 1);
-		case LSR:
-			return (uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0) >> 1;
-		case LSL:
-			return (uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0) << 1;
-		case NOT:
-			return ~(uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0);
-		case ORR:
-			return (uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0)
-				|
-				(uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0);
-		case SUB:
-			return (uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0)
-				-
-				(uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0);
-		case XOR:
-			return (uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0)
-				^
-				(uint32_t)strtol(strtok_r(NULL, " ", &tmp), NULL, 0);
+void display_processor_state(arm_processor_state processor_state) {
+	printf("--------------------------------------------------------------------------------\n");
+	printf("Current State\n");
+	printf("Register\tHex\t\tDec\t\tBin\n");
+	printf("CPSR\t\t%.8x\t%.10d\t%.32b\n", processor_state.cpsr, processor_state.cpsr, processor_state.cpsr);
+	for (int i = 0; i < 16; i++) {
+		printf("r%d\t\t%.8x\t%.10d\t%.32b\n", i, processor_state.r[i], processor_state.r[i], processor_state.r[i]);
 	}
-}
-
-char* oplist[] = {
-	"ADD",
-	"AND",
-	"ASR",
-	"LSR",
-	"LSL",
-	"NOT",
-	"ORR",
-	"SUB",
-	"XOR",
-};
-
-void gensample() {
-	srand(time(0));
-	FILE* fileptr = fopen("samples/sample.txt", "w");
-	if (!fileptr) return;
-	for (int i = 0; i < 0xFF; i++) {
-		fprintf(fileptr, "%s 0x%X 0x%X\n", oplist[rand()%9], rand(), rand());
-	}
-	fclose(fileptr);
+	printf("--------------------------------------------------------------------------------\n");
 }
