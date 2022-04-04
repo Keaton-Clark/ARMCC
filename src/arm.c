@@ -4,7 +4,10 @@
 #define ISDELIM(CHAR) (CHAR == ' ' || CHAR == '\t' || CHAR == ',')
 #define ISNUM(CHAR) (CHAR >= '0' && CHAR <= '9' || CHAR == 'X' || CHAR >= 'A' && CHAR <= 'F')
 
-#define CSET(CPSR) (CPSR & (1<<31))
+#define NSET(CPSR) (CPSR & (1<<31))
+#define ZSET(CPSR) (CPSR & (1<<30))
+#define CSET(CPSR) (CPSR & (1<<29))
+#define VSET(CPSR) (CPSR & (1<<28))
 
 static char *Regs[] = {
 	"R0", "R1", "R2", "R3", 
@@ -91,6 +94,17 @@ uint32_t armv7_compile_line(char *str) {
 		}
 		return instr.bits;
 	}
+	while (ISDELIM(*str)) str++;
+	if (hash_search(str, str+1, &tmp)) {
+		instr.dataprocessingRm.Rm = tmp;
+	} else if (*str == '#') {
+		str++;
+		if (arm_readnumber(str, &tmp)) {
+			instr.dataprocessingImm.I = 1;
+			instr.dataprocessingImm.Imm = tmp;
+		}
+		return instr.bits;
+	}
 	return instr.bits;
 }
 
@@ -118,17 +132,71 @@ char *arm_decompile_machine_code(uint32_t machine_code) {
 
 bool armv7_execute_conditional (uint32_t cpsr, uint8_t Cond) {
 	switch (Cond) {
+		case 0 :
+			if (ZSET(cpsr)) return true;
+			break;
+		case 1 :
+			if (!ZSET(cpsr)) return true;
+			break;
 		case 2 :
 			if (CSET(cpsr)) return true;
+			break;
+		case 3 :
+			if (!CSET(cpsr)) return true;
+			break;
+		case 4 :
+			if (NSET(cpsr)) return true;
+			break;
+		case 5 :
+			if (!NSET(cpsr)) return true;
+			break;
+		case 6 :
+			if (VSET(cpsr)) return true;
+			break;
+		case 7 :
+			if (!VSET(cpsr)) return true;
+			break;
+		case 8 :
+			if (CSET(cpsr) && !ZSET(cpsr)) return true;
+			break;
+		case 9 :
+			if (!CSET(cpsr) || ZSET(cpsr)) return true;
+			break;
+		case 10 :
+			if (NSET(cpsr) == VSET(cpsr)) return true;
+			break;
+		case 11 :
+			if (NSET(cpsr) != VSET(cpsr)) return true;
+			break;
+		case 12 :
+			if (!ZSET(cpsr) && (NSET(cpsr) == VSET(cpsr))) return true;
+			break;
+		case 13 :
+			if (ZSET(cpsr) || (NSET(cpsr) != VSET(cpsr))) return true;
+			break;
+		case 14 :
+			return true;
 			break;
 	}
 	return false;
 }
 
-void armv7_execute_machine_code(arm_processor_state processor_state, uint32_t machine_code) {
+void armv7_execute_machine_code(arm_processor_state *processor_state, uint32_t machine_code) {
 	armv7_instr instr;
 	instr.bits = machine_code;
-	if (armv7_execute_conditional(processor_state.cpsr, instr.dataprocessingRm.Cond)) {
-		printf("executing line");
+	if (!armv7_execute_conditional(processor_state->cpsr, instr.dataprocessingRm.Cond)) return;
+	switch (instr.dataprocessingRm.OpCode) {
+		case 0 : //AND
+			processor_state->r[instr.dataprocessingRm.Rd] = processor_state->r[instr.dataprocessingRm.Rn] & processor_state->r[instr.dataprocessingRm.Rm];
+			return;
+		case 1 : //EOR
+			processor_state->r[instr.dataprocessingRm.Rd] = processor_state->r[instr.dataprocessingRm.Rn] ^ processor_state->r[instr.dataprocessingRm.Rm];
+			return;
+		case 2 : //SUB
+			processor_state->r[instr.dataprocessingRm.Rd] = processor_state->r[instr.dataprocessingRm.Rn] - processor_state->r[instr.dataprocessingRm.Rm];
+			return;
+		case 13 : //MOV
+			processor_state->r[instr.dataprocessingRm.Rd] = instr.dataprocessingImm.Imm;
+			return;
 	}
 }

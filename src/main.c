@@ -15,21 +15,23 @@
 
 
 void display_processor_state(arm_processor_state processor_state);
-
+char **load_file(char *file, uint32_t *lines); //calls malloc
 bool readfile(char *file);
 
 int main() {
 	arm_processor_state processor_state;
 	memset(&processor_state, 0, sizeof(arm_processor_state));
-	processor_state.cpsr = 1 << 31;
 	display_processor_state(processor_state);
-	char str[] = "MOVCS r7, #0xFF";
-	uint32_t out;
+	uint32_t mc;
 	armv7_init_hash_map();
-	uint32_t mc = armv7_compile_line(str);
-	printf("%s\n", str);
-	printf("%.32b\n%s", mc, arm_decompile_machine_code(mc));
-	armv7_execute_machine_code(processor_state, mc);
+	uint32_t tmpin; 
+	char **tmp = load_file("test.asm", &tmpin);
+	for (int i = 0; i < tmpin; i++) {
+		mc = armv7_compile_line(tmp[i]);
+		printf("%s\n", tmp[i]);
+		armv7_execute_machine_code(&processor_state, mc);
+		display_processor_state(processor_state);
+	}
 }
 
 bool readfile(char *file) {
@@ -64,4 +66,35 @@ void display_processor_state(arm_processor_state processor_state) {
 		printf("r%d\t\t%.8x\t%.10d\t%.32b\n", i, processor_state.r[i], processor_state.r[i], processor_state.r[i]);
 	}
 	printf("--------------------------------------------------------------------------------\n");
+}
+
+char **load_file(char *file, uint32_t *lines) {
+	FILE *fptr = fopen(file, "r");
+	if (!fptr) return NULL;
+	char c; *lines = 0;
+	while ((c = fgetc(fptr)) != EOF) {
+		if (c == '\n') {
+			*lines += 1;
+		}
+	}
+	rewind(fptr);
+	char **out = malloc(*lines * sizeof(char**));
+	char buffer[32];
+	size_t i = 0, n = 0;
+	memset(buffer, 0, 32);
+	while ((c = fgetc(fptr)) != EOF) {
+		if (c == '\n') {
+			out[n] = malloc((i + 1) * sizeof(char*));
+			memset(out[n], 0, i + 1);
+			strcpy(out[n], buffer);
+			memset(buffer, 0, 32);
+			i = 0;
+			n++;
+		} else {
+			buffer[i] = c;
+			i++;
+		}
+	}
+	fclose(fptr);
+	return out;
 }
