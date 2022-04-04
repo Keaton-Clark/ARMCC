@@ -61,7 +61,7 @@ int main (int argc, char* argv[]) {
 	return 0;
 }
 
-uint32_t hash(char* str) { //Why? Because it looked fun, no good reason. Makes it slightly faster with less modularity
+uint32_t hash(char* str) {
 	int hash = 5381;
 	int c;
 	while (c = *str++)

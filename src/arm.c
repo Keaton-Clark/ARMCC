@@ -9,6 +9,9 @@
 #define CSET(CPSR) (CPSR & (1<<29))
 #define VSET(CPSR) (CPSR & (1<<28))
 
+#define OPERAND2(INSTR) 
+
+
 static char *Regs[] = {
 	"R0", "R1", "R2", "R3", 
 	"R4", "R5", "R6", "R7", 
@@ -66,13 +69,30 @@ uint32_t armv7_compile_line(char *str) {
 	uint32_t tmp;
 	memset(&instr, 0, 4);
 	while (!hash_search(str, str + 2, &tmp)) str++;
-	instr.dataprocessingRm.OpCode = tmp;
+	if (tmp <= 15) {
+		instr.dataprocessingRm.OpCode = tmp;
+	} else {
+		switch (tmp) {
+			case 17 : //ASR
+				instr.bits |= 1<<25;
+				instr.bits |= 1<<24;
+				break;
+			case 18 : //LSR
+				instr.bits |= 1<<26;
+				instr.bits |= 1<<24;
+				break;
+			case 19 : //LSL
+				instr.bits |= 1<<24;
+				break;
+		}
+		instr.dataprocessingRm.OpCode = 13;
+	}
 	str += 3;
 	if (*str == 'S') {
 		instr.dataprocessingRm.S = 1; 
 		str++;
 	}
-	instr.dataprocessingRm.Cond = 14; //default conditional is AL. They should have had this as 0 to be honest
+	instr.dataprocessingRm.Cond = 14;
 	if (hash_search(str, str + 1, &tmp)) {
 		instr.dataprocessingRm.Cond = tmp;
 		str += 2;
@@ -115,6 +135,9 @@ void armv7_init_hash_map() {
 		hash_add(Conds[i], i);
 	for (int i = 0; i < 16; i++)
 		hash_add(Regs[i], i);
+	hash_add("ASR", 17);
+	hash_add("LSR", 18);
+	hash_add("LSL", 19);
 }
 
 char *arm_decompile_machine_code(uint32_t machine_code) {
@@ -187,16 +210,67 @@ void armv7_execute_machine_code(arm_processor_state *processor_state, uint32_t m
 	if (!armv7_execute_conditional(processor_state->cpsr, instr.dataprocessingRm.Cond)) return;
 	switch (instr.dataprocessingRm.OpCode) {
 		case 0 : //AND
-			processor_state->r[instr.dataprocessingRm.Rd] = processor_state->r[instr.dataprocessingRm.Rn] & processor_state->r[instr.dataprocessingRm.Rm];
+			processor_state->r[instr.dataprocessingRm.Rd] = 
+				processor_state->r[instr.dataprocessingRm.Rn] &
+				(instr.dataprocessingRm.I ? instr.dataprocessingImm.Imm : processor_state->r[instr.dataprocessingRm.Rm]);
 			return;
 		case 1 : //EOR
-			processor_state->r[instr.dataprocessingRm.Rd] = processor_state->r[instr.dataprocessingRm.Rn] ^ processor_state->r[instr.dataprocessingRm.Rm];
+			processor_state->r[instr.dataprocessingRm.Rd] = 
+				processor_state->r[instr.dataprocessingRm.Rn] ^
+				(instr.dataprocessingRm.I ? instr.dataprocessingImm.Imm : processor_state->r[instr.dataprocessingRm.Rm]);
 			return;
 		case 2 : //SUB
-			processor_state->r[instr.dataprocessingRm.Rd] = processor_state->r[instr.dataprocessingRm.Rn] - processor_state->r[instr.dataprocessingRm.Rm];
+			processor_state->r[instr.dataprocessingRm.Rd] =
+				processor_state->r[instr.dataprocessingRm.Rn] -
+				(instr.dataprocessingRm.I ? instr.dataprocessingImm.Imm : processor_state->r[instr.dataprocessingRm.Rm]);
+			return;
+		case 3 : //RSB
+			processor_state->r[instr.dataprocessingRm.Rm] =
+				(instr.dataprocessingRm.I ? instr.dataprocessingImm.Imm : processor_state->r[instr.dataprocessingRm.Rm]) -
+				processor_state->r[instr.dataprocessingRm.Rn];
+			return;
+		case 4 : //ADD
+			processor_state->r[instr.dataprocessingRm.Rd] =
+				processor_state->r[instr.dataprocessingRm.Rn] +
+				(instr.dataprocessingRm.I ? instr.dataprocessingImm.Imm : processor_state->r[instr.dataprocessingRm.Rm]);
+			return;
+		case 5 : //ADC
+			processor_state->r[instr.dataprocessingRm.Rd] =
+				processor_state->r[instr.dataprocessingRm.Rn] +
+				(instr.dataprocessingRm.I ? instr.dataprocessingImm.Imm : processor_state->r[instr.dataprocessingRm.Rm]) +
+				(CSET(processor_state->cpsr)>>29) - 1;
+			return;
+		case 6 : //SBC
+			processor_state->r[instr.dataprocessingRm.Rd] =
+				processor_state->r[instr.dataprocessingRm.Rn] -
+				(instr.dataprocessingRm.I ? instr.dataprocessingImm.Imm : processor_state->r[instr.dataprocessingRm.Rm]) +
+				(CSET(processor_state->cpsr)>>29);
+			return;
+		case 12 : //ORR
+			processor_state->r[instr.dataprocessingRm.Rd] = 
+				processor_state->r[instr.dataprocessingRm.Rn] |
+				(instr.dataprocessingRm.I ? instr.dataprocessingImm.Imm : processor_state->r[instr.dataprocessingRm.Rm]);
 			return;
 		case 13 : //MOV
-			processor_state->r[instr.dataprocessingRm.Rd] = instr.dataprocessingImm.Imm;
+			processor_state->r[instr.dataprocessingRm.Rd] =
+				(instr.dataprocessingRm.I ? instr.dataprocessingImm.Imm : processor_state->r[instr.dataprocessingRm.Rn]);
+				if (instr.bits & (1<<24) && !instr.dataprocessingRm.I) {
+					if (instr.bits & 1<<25 || instr.bits & 1<<26) {
+						processor_state->r[instr.dataprocessingRm.Rd] >>= 1;
+					} else {
+						processor_state->r[instr.dataprocessingRm.Rd] <<= 1;
+					}
+
+				}
+			return;
+		case 14 : //BIC
+			processor_state->r[instr.dataprocessingRm.Rd] = 
+				processor_state->r[instr.dataprocessingRm.Rn] &
+				(instr.dataprocessingRm.I ? instr.dataprocessingImm.Imm : processor_state->r[instr.dataprocessingRm.Rm]);
+			return;
+		case 15 : //MVN
+			processor_state->r[instr.dataprocessingRm.Rd] =
+				(instr.dataprocessingRm.I ? instr.dataprocessingImm.Imm : processor_state->r[instr.dataprocessingRm.Rn]);
 			return;
 	}
 }

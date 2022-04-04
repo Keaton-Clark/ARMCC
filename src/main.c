@@ -26,11 +26,14 @@ int main() {
 	armv7_init_hash_map();
 	uint32_t tmpin; 
 	char **tmp = load_file("test.asm", &tmpin);
+	processor_state.cpsr |= 1<<29;
 	for (int i = 0; i < tmpin; i++) {
 		mc = armv7_compile_line(tmp[i]);
+		printf("--------------------------------------------------------------------------------\n");
 		printf("%s\n", tmp[i]);
 		armv7_execute_machine_code(&processor_state, mc);
 		display_processor_state(processor_state);
+		printf ("\n\n");
 	}
 }
 
